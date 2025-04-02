@@ -24,3 +24,18 @@ build/
 # System files
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# AutoGen specific
+.autogen/
+.cache/
+
+# API keys and secrets
+*.pem
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

@@ -19,12 +19,23 @@ A generic booking agent built with AG2 (AutoGen) that mediates between service p
    pip install -r requirements.txt
    ```
 
-2. Run the application:
+2. Create your environment file:
+   ```
+   cp dot_env.example .env
+   ```
+   Edit the .env file to add your OpenAI API key.
+
+3. Run the application:
    ```
    python app.py
    ```
+   
+   To use the basic conversation handler instead of the AG2 multi-agent system:
+   ```
+   USE_BASIC_CONVERSATION=true python app.py
+   ```
 
-3. Open the web interface in your browser (the URL will be displayed in the terminal)
+4. Open the web interface in your browser (the URL will be displayed in the terminal)
 
 ## Project Structure
 

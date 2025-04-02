@@ -8,13 +8,13 @@
 
 **Deliverable**: A working web interface where you can chat, but without any booking functionality yet
 
-## Phase 2: AG2 Agent Framework Integration [ ]
+## Phase 2: AG2 Agent Framework Integration [x]
 
-- [ ] Set up the AG2 agent framework with three agents: UserProxy, BookingAgent, and ServiceProvider
-- [ ] Define agent roles with detailed system messages for each agent
-- [ ] Implement multi-agent conversation using AG2's GroupChat and GroupChatManager
-- [ ] Create a context extraction system to enhance agent understanding of user requests
-- [ ] Add fallback mechanisms for error handling
+- [x] Set up the AG2 agent framework with three agents: UserProxy, BookingAgent, and ServiceProvider
+- [x] Define agent roles with detailed system messages for each agent
+- [x] Implement multi-agent conversation using AG2's GroupChat and GroupChatManager
+- [x] Create a context extraction system to enhance agent understanding of user requests
+- [x] Add fallback mechanisms for error handling
 
 **Deliverable**: A system where the agents can communicate with each other and the user through the chat interface
 

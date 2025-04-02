@@ -1,0 +1,8 @@
+# API Keys
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Configuration
+USE_BASIC_CONVERSATION=false
+
+# AutoGen Configuration
+AUTOGEN_USE_DOCKER=False
