@@ -18,9 +18,9 @@
 
 **Deliverable**: A system where the agents can communicate with each other and the user through the chat interface
 
-## Phase 3: Calendar Query Functionality via simple local calendar implementation ⬜
+## Phase 3: Calendar Query Functionality via simple local calendar implementation 🚧
 
-- ⬜ Implement a simple local calendar
+- 🚧 Implement a simple local calendar
 - ⬜ Implement calendar querying to find available time slots
 - ⬜ Display available slots to the user
 
