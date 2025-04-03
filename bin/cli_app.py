@@ -18,9 +18,12 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# Add the parent directory to the path so we can import modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Import the conversation handler
 try:
-    from agent import handle_booking_request
+    from app.agent import handle_booking_request
     logger.info("Successfully imported AG2 multi-agent conversation handler")
 except ImportError as e:
     logger.error("Failed to load AG2 agent: %s", e, exc_info=True)

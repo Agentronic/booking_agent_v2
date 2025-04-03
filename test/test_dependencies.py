@@ -13,6 +13,10 @@ def main():
     try:
         logger.info("Testing imports for booking agent application")
         
+        # Add the parent directory to the path so we can import modules
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sys.path.append(project_root)
+        
         # Import the necessary modules
         logger.info("Importing gradio")
         import gradio as gr
@@ -29,6 +33,14 @@ def main():
         logger.info("Importing slot_calendar")
         import slot_calendar
         logger.info("slot_calendar imported successfully")
+        
+        # Test app module imports
+        logger.info("Importing app modules")
+        from app.agent import handle_booking_request
+        logger.info("app.agent imported successfully")
+        
+        from app.simple_agent import handle_simple_booking_request
+        logger.info("app.simple_agent imported successfully")
         
         logger.info("All imports successful!")
         

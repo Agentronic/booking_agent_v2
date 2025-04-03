@@ -22,7 +22,7 @@ def simple_handle_conversation(message, user_id="default_user"):
 
 # Try to import the real conversation handler
 try:
-    from agent import handle_conversation
+    from app.agent import handle_conversation
     logger.info("Successfully imported AG2 multi-agent conversation handler")
 except Exception as e:
     logger.error(f"Failed to load AG2 agent: {e}. Using simple conversation handler as fallback", exc_info=True)

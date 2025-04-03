@@ -27,7 +27,7 @@ def main():
         os.environ["PYTHONUNBUFFERED"] = "1"       # Ensure output is not buffered
         
         # Add the parent directory to the path so we can import modules
-        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
         # Import the app module
         logger.info("Importing app module...")

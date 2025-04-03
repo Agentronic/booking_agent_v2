@@ -29,9 +29,12 @@ def run_test():
     """Run a test of the CLI app with a simulated conversation."""
     logger.info("Starting CLI app test")
     
+    # Add the parent directory to the path so we can import modules
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
     # Start the CLI app process
     process = subprocess.Popen(
-        ["python", "cli_app.py"],
+        ["python", os.path.join(project_root, "bin", "cli_app.py")],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

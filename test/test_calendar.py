@@ -4,10 +4,14 @@ Unit tests for the simple calendar booking system.
 """
 
 import os
+import sys
 import unittest
 import sqlite3
 from datetime import datetime, timedelta
-import slot_calendar
+
+# Add the parent directory to the path so we can import modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from app import slot_calendar
 
 
 class TestCalendarBookingSystem(unittest.TestCase):

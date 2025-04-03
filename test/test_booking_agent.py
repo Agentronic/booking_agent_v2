@@ -5,6 +5,7 @@ This script directly tests the handle_booking_request function
 with different test cases.
 """
 import sys
+import os
 import logging
 import time
 from dotenv import load_dotenv
@@ -23,9 +24,12 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# Add the parent directory to the path so we can import modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Import the booking request handler
 try:
-    from agent import handle_booking_request
+    from app.agent import handle_booking_request
     logger.info("Successfully imported booking agent handler")
 except ImportError as e:
     logger.error("Failed to import booking agent: %s", e, exc_info=True)

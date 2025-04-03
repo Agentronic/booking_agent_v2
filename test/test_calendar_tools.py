@@ -13,8 +13,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime, timedelta
-import slot_calendar
-import slot_calendar_tools as calendar_tools
+from app import slot_calendar
+from app import slot_calendar_tools as calendar_tools
 
 
 class TestCalendarTools(unittest.TestCase):

@@ -5,7 +5,7 @@ Calendar Tools for AG2 - Exposes the calendar booking system methods as tools th
 
 import json
 from typing import Dict, Any, Optional, Tuple
-import slot_calendar
+from app import slot_calendar
 
 
 def next_available_slot_tool(args: Dict[str, Any]) -> Dict[str, Any]:
