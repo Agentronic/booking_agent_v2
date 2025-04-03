@@ -7,6 +7,11 @@ import os
 import unittest
 import json
 import sqlite3
+import sys
+
+# Add parent directory to path to import modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from datetime import datetime, timedelta
 import slot_calendar
 import slot_calendar_tools as calendar_tools

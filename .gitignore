@@ -17,6 +17,7 @@ build/
 .env
 .vscode/
 .idea/
+.conda_env
 
 # Jupyter Notebook
 .ipynb_checkpoints
