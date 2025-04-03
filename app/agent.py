@@ -282,101 +282,271 @@ def get_available_slots(start_date=None, num_days=3, duration=30):
     return slots
 
 
+# Note: The handle_booking_request function has been refactored into the BookingAgentService class
+# This function is maintained for backward compatibility
 def handle_booking_request(user_message, user_id="default_user"):
-    """Handle a booking request using the multi-agent system."""
-    logger.info(f"Processing booking request: {user_message}")
+    """Legacy function that delegates to the centralized BookingAgentService."""
+    logger.info(f"Using legacy handle_booking_request with: {user_message}")
+    return booking_agent_service.process_message(user_message, user_id)
+
+
+class BookingAgentService:
+    """
+    Central service that encapsulates all booking agent functionality.
+    This class maintains conversation state and handles booking logic
+    independent of the frontend (CLI or web UI).
+    """
     
-    try:
-        # Parse the user's message to extract key details
-        service = None
-        date = None
-        time = None
+    def __init__(self):
+        """Initialize the booking agent service."""
+        # Maintain conversation state for each user
+        self.conversation_history = {}
+    
+    def get_user_state(self, user_id):
+        """Get or initialize user state."""
+        if user_id not in self.conversation_history:
+            self.conversation_history[user_id] = {
+                "messages": [],
+                "state": "initial", 
+                "service": None,
+                "date": None,
+                "time": None,
+                "duration": None,
+                "available_slots": []
+            }
+        return self.conversation_history[user_id]
+    
+    def process_message(self, message, user_id="default_user"):
+        """
+        Process a user message and maintain conversation state.
         
-        # Detect service type
-        if "haircut" in user_message.lower():
-            service = "Haircut"
-            duration = 30
-        elif "massage" in user_message.lower():
-            service = "Massage"
-            duration = 60
-        elif "consultation" in user_message.lower():
-            service = "Consultation"
-            duration = 45
-        else:
-            service = "Haircut"  # Default to haircut
-            duration = 30
-        
-        # Try to parse date
-        import datetime
-        today = datetime.date.today()
-        tomorrow = today + datetime.timedelta(days=1)
-        
-        if "tomorrow" in user_message.lower():
-            date = tomorrow.strftime("%Y-%m-%d")
-        else:
-            # Use tomorrow's date as default
-            date = tomorrow.strftime("%Y-%m-%d")
-        
-        # Try to parse time
-        import re
-        time_match = re.search(r'(\d{1,2}):?(\d{2})?\s*(am|pm)?', user_message.lower())
-        if time_match:
-            hour = int(time_match.group(1))
-            minute = int(time_match.group(2) or "00")
-            am_pm = time_match.group(3)
+        Args:
+            message: The user's message text
+            user_id: Unique identifier for the user/session
             
-            if am_pm == "pm" and hour < 12:
-                hour += 12
-            elif am_pm == "am" and hour == 12:
-                hour = 0
+        Returns:
+            Response message from the booking agent
+        """
+        logger.info(f"Processing message: {message} for user: {user_id}")
+        
+        try:
+            # Get or initialize user state
+            user_state = self.get_user_state(user_id)
+            user_state["messages"].append({"role": "user", "content": message})
             
-            time = f"{hour:02d}:{minute:02d}"
-        else:
-            # Default to first available slot
-            time = "09:00"
+            # Process the message based on current state
+            response = self.handle_booking_request(message, user_state)
+            
+            # Store the response
+            user_state["messages"].append({"role": "assistant", "content": response})
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error processing message: {str(e)}", exc_info=True)
+            
+            try:
+                # Fallback to basic conversation
+                from basic_conversation import handle_conversation as basic_handler
+                basic_response = basic_handler(message)
+                
+                # Still maintain conversation history
+                if user_id in self.conversation_history:
+                    self.conversation_history[user_id]["messages"].append(
+                        {"role": "assistant", "content": basic_response}
+                    )
+                
+                return f"The booking system encountered an error. Falling back to basic mode. {basic_response}"
+            except Exception as fallback_error:
+                logger.error(f"Fallback also failed: {str(fallback_error)}", exc_info=True)
+                return f"I'm sorry, there was an issue with the booking system: {str(e)}"
+    
+    def handle_booking_request(self, user_message, user_state):
+        """
+        Handle a booking request based on user message and current state.
         
-        # Find available slots
-        available_slots = get_available_slots(start_date=date, duration=duration)
-        
-        # Check if the requested time is available
-        formatted_time = datetime.datetime.strptime(time, "%H:%M").strftime("%I:%M %p")
-        formatted_date = datetime.datetime.strptime(date, "%Y-%m-%d").strftime("%A, %B %d")
-        
-        # Direct response with booking details
-        response = f"""Great! I can help you book a {service.lower()} for {formatted_date} at {formatted_time}.
+        Args:
+            user_message: The user's message text
+            user_state: The user's current conversation state
+            
+        Returns:
+            Response message from the booking agent
+        """
+        try:
+            # Check if this is a confirmation message
+            if user_state["state"] == "confirming" and any(word in user_message.lower() for word in ["yes", "confirm", "book", "ok", "sure"]):
+                
+                # User is confirming the booking
+                client_id = f"user_{user_state.get('user_id', 'default')}_{int(datetime.now().timestamp())}"
+                
+                # Book the appointment
+                booking_args = {
+                    "date": user_state["date"],
+                    "time": user_state["time"],
+                    "duration": user_state["duration"],
+                    "client_id": client_id,
+                    "service_name": user_state["service"]
+                }
+                
+                booking_result = slot_calendar_tools.book_slot_tool(booking_args)
+                
+                if booking_result["success"] and booking_result.get("booked", False):
+                    date_obj = datetime.strptime(user_state["date"], "%Y-%m-%d")
+                    time_obj = datetime.strptime(user_state["time"], "%H:%M")
+                    formatted_date = date_obj.strftime("%A, %B %d")
+                    formatted_time = time_obj.strftime("%I:%M %p")
+                    
+                    response = f"""Your {user_state["service"].lower()} appointment has been confirmed for {formatted_date} at {formatted_time}.
+Your booking reference is {client_id}.
+Thank you for booking with us!"""
+                    user_state["state"] = "booked"
+                else:
+                    response = f"""I'm sorry, I couldn't book that slot. It may no longer be available.
+Would you like to see other available slots?"""
+                    user_state["state"] = "initial"
+            
+            # Check for a request to show available slots
+            elif "available" in user_message.lower() or "slots" in user_message.lower() or "times" in user_message.lower():
+                # Detect service type if mentioned
+                service = None
+                duration = 30  # Default duration
+                
+                if "haircut" in user_message.lower():
+                    service = "Haircut"
+                    duration = 30
+                elif "massage" in user_message.lower():
+                    service = "Massage"
+                    duration = 60
+                elif "consultation" in user_message.lower():
+                    service = "Consultation"
+                    duration = 45
+                elif user_state["service"]:
+                    # Use the previously mentioned service
+                    service = user_state["service"]
+                    if service == "Haircut":
+                        duration = 30
+                    elif service == "Massage":
+                        duration = 60
+                    elif service == "Consultation":
+                        duration = 45
+                
+                # Get today and tomorrow dates
+                today = datetime.now().date()
+                tomorrow = today + timedelta(days=1)
+                date = tomorrow.strftime("%Y-%m-%d")
+                
+                # Find available slots
+                available_slots = get_available_slots(start_date=date, duration=duration)
+                
+                response = f"""Here are the available slots for {service}:
+{chr(10).join([f"- {slot}" for slot in available_slots[:5]])}
+
+Would you like to book one of these slots?"""
+                
+                user_state["state"] = "selecting"
+                user_state["service"] = service
+                user_state["duration"] = duration
+                user_state["available_slots"] = available_slots[:5]
+            
+            # Handle a new booking request
+            elif any(word in user_message.lower() for word in ["book", "schedule", "appointment"]):
+                # Parse the user's message to extract key details
+                service = None
+                date = None
+                time = None
+                
+                # Detect service type
+                if "haircut" in user_message.lower():
+                    service = "Haircut"
+                    duration = 30
+                elif "massage" in user_message.lower():
+                    service = "Massage"
+                    duration = 60
+                elif "consultation" in user_message.lower():
+                    service = "Consultation"
+                    duration = 45
+                else:
+                    service = "Haircut"  # Default to haircut
+                    duration = 30
+                
+                # Try to parse date
+                today = datetime.now().date()
+                tomorrow = today + timedelta(days=1)
+                
+                if "tomorrow" in user_message.lower():
+                    date = tomorrow.strftime("%Y-%m-%d")
+                else:
+                    # Use tomorrow's date as default
+                    date = tomorrow.strftime("%Y-%m-%d")
+                
+                # Try to parse time
+                import re
+                time_match = re.search(r'(\d{1,2}):?(\d{2})?\s*(am|pm)?', user_message.lower())
+                if time_match:
+                    hour = int(time_match.group(1))
+                    minute = int(time_match.group(2) or "00")
+                    am_pm = time_match.group(3)
+                    
+                    if am_pm == "pm" and hour < 12:
+                        hour += 12
+                    elif am_pm == "am" and hour == 12:
+                        hour = 0
+                    
+                    time = f"{hour:02d}:{minute:02d}"
+                else:
+                    # Default to first available slot
+                    time = "09:00"
+                
+                # Find available slots
+                available_slots = get_available_slots(start_date=date, duration=duration)
+                
+                # Check if the requested time is available
+                formatted_time = datetime.strptime(time, "%H:%M").strftime("%I:%M %p")
+                formatted_date = datetime.strptime(date, "%Y-%m-%d").strftime("%A, %B %d")
+                
+                # Save the state
+                user_state["state"] = "confirming"
+                user_state["service"] = service
+                user_state["date"] = date
+                user_state["time"] = time
+                user_state["duration"] = duration
+                user_state["available_slots"] = available_slots[:5]
+                
+                # Direct response with booking details
+                response = f"""Great! I can help you book a {service.lower()} for {formatted_date} at {formatted_time}.
 
 Available slots for {service} on {formatted_date}:
 {chr(10).join([f"- {slot}" for slot in available_slots[:5]])}
 
 Would you like to confirm this booking?"""
+            
+            # Default fallback response
+            else:
+                response = """I can help you book an appointment for a haircut, massage, or consultation.
+What service would you like to book?"""
+                user_state["state"] = "initial"
+            
+            return response
         
-        print(f"\nBooking Agent: {response}")
-        return response
-    
-    except Exception as e:
-        logger.error(f"Error in handle_booking_request: {str(e)}", exc_info=True)
-        print(f"\nBooking Agent: I'm sorry, there was an issue processing your request: {str(e)}")
-        return f"I'm sorry, there was an issue with the booking process: {str(e)}"
+        except Exception as e:
+            logger.error(f"Error in handle_booking_request: {str(e)}", exc_info=True)
+            return f"I'm sorry, there was an issue with the booking process: {str(e)}"
 
+# Create a global instance of the booking agent service
+booking_agent_service = BookingAgentService()
 
 def handle_conversation(message, user_id="default_user"):
-    """Main entry point for the conversation system."""
+    """
+    Main entry point for the conversation system.
+    This function delegates to the BookingAgentService.
+    """
     logger.info(f"Received message: {message}")
-
+    
     try:
-        logger.info("Attempting to use AG2 multi-agent system")
-        return handle_booking_request(message, user_id)
+        logger.info("Using BookingAgentService to handle message")
+        return booking_agent_service.process_message(message, user_id)
     except Exception as e:
-        logger.error(
-            f"AG2 failed with error: {str(e)}. Falling back to basic conversation handler", exc_info=True)
-        # Fallback to basic conversation handler if AG2 fails
+        logger.error(f"BookingAgentService failed with error: {str(e)}", exc_info=True)
+        # Fallback to basic conversation handler if all else fails
         from basic_conversation import handle_conversation as basic_handler
         basic_response = basic_handler(message)
-
-        # Still maintain conversation history even in fallback mode
-        CONVERSATION_HISTORY[user_id] = CONVERSATION_HISTORY.get(user_id, []) + [
-            {"role": "user", "content": message},
-            {"role": "assistant", "content": basic_response}
-        ]
-
         return f"The booking system encountered an error. Falling back to basic mode. {basic_response}"

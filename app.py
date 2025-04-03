@@ -37,9 +37,9 @@ def chat_interface(message, history):
     print(f"Processing message: {message}")
     
     try:
-        # Get response from conversation handler
+        # Get response from centralized conversation handler
         response = handle_conversation(message, user_id)
-        logger.info("Successfully processed message")
+        logger.info("Successfully processed message via centralized service")
         print(f"Response: {response}")
         
     except Exception as e:

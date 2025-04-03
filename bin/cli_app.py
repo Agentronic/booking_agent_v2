@@ -25,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the conversation handler
 try:
-    from app.agent import handle_booking_request
+    from app.agent import handle_conversation
     logger.info("Successfully imported AG2 multi-agent conversation handler")
 except ImportError as e:
     logger.error("Failed to load AG2 agent: %s", e, exc_info=True)
@@ -82,59 +82,45 @@ def main():
     print("- Massage (60 min)")
     print("- Consultation (45 min)")
     print("\nHow can I help you today?")
-    
-    # Main conversation loop
-    while True:
-        try:
-            # Get user input
-            user_input = input("\nYou: ").strip()
-            
-            # Check for help command
-            if user_input.lower() == 'help':
-                print("\nAvailable commands:")
-                print("- 'exit', 'quit', or 'bye': End the conversation")
-                print("- 'help': Show this help message")
-                print("- 'clear': Clear the conversation history")
-                print("- 'debug on/off': Toggle debug mode")
-                print("\nExample queries:")
-                print("- 'What time slots do you have available?'")
-                print("- 'I'd like to book a haircut tomorrow at 10am'")
-                print("- 'Can I schedule a massage for Friday afternoon?'")
-                continue
+
+    # Process input regardless of whether it's from a pipe or terminal
+    try:
+        while True:
+            try:
+                # Read input line
+                user_input = input("\nYou: ").strip()
                 
-            # Process input with a timeout
-            @timeout(14)  # 14-second timeout
-            def process_input(user_input):
                 # Check for exit commands
-                if user_input.strip().lower() in ['exit', 'quit']:
-                    print("Thank you for using the Booking Agent. Goodbye!")
-                    sys.exit(0)
+                if user_input.lower() in ['exit', 'quit', 'bye']:
+                    print("\nThank you for using the Booking Agent. Goodbye!")
+                    break
                 
-                # Process the booking request
-                try:
-                    response = handle_booking_request(user_input, user_id)
-                    # The response is now a string that can be directly printed
-                    print(f"\nBooking Agent: {response}")
-                except Exception as e:
-                    print(f"\nAn unexpected error occurred: {e}")
-            
-            process_input(user_input)
-            
-        except KeyboardInterrupt:
-            print("\n\nConversation interrupted. Goodbye!")
-            break
-        except KeyError as e:
-            logger.error("Missing key in conversation: %s", e, exc_info=True)
-            print(f"\nSorry, there was an error with the conversation: {str(e)}")
-            print("Please try again or type 'exit' to quit.")
-        except ValueError as e:
-            logger.error("Invalid value in conversation: %s", e, exc_info=True)
-            print(f"\nSorry, there was an error with your input: {str(e)}")
-            print("Please try again or type 'exit' to quit.")
-        except Exception as e:
-            logger.error("Unexpected error in conversation: %s", e, exc_info=True)
-            print(f"\nSorry, there was an unexpected error: {str(e)}")
-            print("Please try again or type 'exit' to quit.")
+                # Check for help command
+                if user_input.lower() == 'help':
+                    print("\nAvailable commands:")
+                    print("- 'exit', 'quit', or 'bye': End the conversation")
+                    print("- 'help': Show this help message")
+                    print("- 'clear': Clear the conversation history")
+                    print("- 'debug on/off': Toggle debug mode")
+                    print("\nExample queries:")
+                    print("- 'What time slots do you have available?'")
+                    print("- 'I'd like to book a haircut tomorrow at 10am'")
+                    print("- 'Can I schedule a massage for Friday afternoon?'")
+                    continue
+                
+                # Process the booking request using the centralized conversation handler
+                response = handle_conversation(user_input, user_id)
+                print(f"\nBooking Agent: {response}")
+                
+            except (KeyboardInterrupt, EOFError):
+                print("\n\nConversation interrupted. Goodbye!")
+                break
+            except Exception as e:
+                print(f"\nAn unexpected error occurred: {e}")
+    
+    except Exception as final_error:
+        print(f"\nFatal error: {final_error}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
