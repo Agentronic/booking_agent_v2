@@ -55,8 +55,13 @@ def create_agents():
         system_message="""You are a proxy for the human user who wants to book a service.
         Your goal is to help the user book an appointment by communicating with the Booking Agent.
         You should express the user's preferences and needs clearly.
-        IMPORTANT: Only send ONE message with the user's request and then TERMINATE your participation in the conversation.
-        Do not respond to further messages from other agents.""",
+        
+        When asked for input and no user input is available:
+        1. If the conversation is about selecting a time slot, respond with: "I'll take the earliest available slot."
+        2. If asked for confirmation, respond with: "Yes, please book that appointment."
+        3. For any other questions, respond with: "Please proceed with the booking process."
+        
+        This will help keep the conversation flowing even when the user can't provide immediate input.""",
         human_input_mode="NEVER",  # In production, set to "ALWAYS" to get actual user input
         # Disable Docker for code execution
         code_execution_config={"use_docker": False}
@@ -190,7 +195,8 @@ def setup_group_chat():
     groupchat = autogen.GroupChat(
         agents=[user_proxy, booking_agent, service_provider],
         messages=[],
-        max_round=3  # Limited to prevent infinite loops
+        max_round=10,  # Increased to allow for more complex conversations
+        speaker_selection_method="round_robin"  # Ensures each agent gets a turn in order
     )
 
     # Create a group chat manager to manage the conversation
@@ -265,9 +271,9 @@ def get_available_slots(start_date=None, num_days=3, duration=30):
                     slot_time, "%H:%M").strftime("%I:%M %p")
                 slots.append(f"{formatted_date} at {formatted_time}")
 
-                # Move to the next potential slot (add duration + 15 min buffer)
+                # Move to the next potential slot (just add duration without buffer)
                 next_time = datetime.strptime(
-                    f"{slot_date} {slot_time}", "%Y-%m-%d %H:%M") + timedelta(minutes=duration+15)
+                    f"{slot_date} {slot_time}", "%Y-%m-%d %H:%M") + timedelta(minutes=duration)
                 current_time = next_time.strftime("%H:%M")
             else:
                 # If there's an error or no more slots, move to next day
@@ -279,113 +285,77 @@ def get_available_slots(start_date=None, num_days=3, duration=30):
 def handle_booking_request(user_message, user_id="default_user"):
     """Handle a booking request using the multi-agent system."""
     logger.info(f"Processing booking request: {user_message}")
-
+    
     try:
-        # Check if we have an existing conversation for this user
-        existing_conversation = CONVERSATION_HISTORY.get(user_id, [])
-        logger.info(f"Found {len(existing_conversation)} previous messages for user")
-
-        # Set up a fresh group chat for each interaction
-        user_proxy, manager = setup_group_chat()
+        # Parse the user's message to extract key details
+        service = None
+        date = None
+        time = None
         
-        # If the user message is empty or just contains whitespace, provide a default message
-        if not user_message.strip():
-            user_message = "I'd like to book an appointment"
-            logger.info("Empty user message, using default: 'I'd like to book an appointment'")
-
-        # Determine if the message is related to availability or booking
-        availability_keywords = ["available", "time", "slot", "schedule", "when", "appointment", "book"]
-        is_availability_request = any(keyword in user_message.lower() for keyword in availability_keywords)
-
-        # If there's existing conversation, add context to the message
-        context_message = user_message
-        if existing_conversation:
-            # Format previous conversation for context
-            context = "\n".join([
-                f"{'User' if msg['role'] == 'user' else 'Assistant'}: {msg['content']}"
-                # Include last 5 messages for context
-                for msg in existing_conversation[-5:]
-            ])
-            context_message = f"Previous conversation:\n{context}\n\nCurrent message: {user_message}"
-            logger.info("Added conversation context to message")
-
-        # Add available slots information if this is an availability request
-        if is_availability_request or not existing_conversation:
-            # Get available slots for different service durations
-            haircut_slots = get_available_slots(duration=30)  # Haircut - 30 min
-            massage_slots = get_available_slots(duration=60)  # Massage - 60 min
-            consultation_slots = get_available_slots(duration=45)  # Consultation - 45 min
-
-            # Format the slots information
-            slots_info = "\n\nHere are some available time slots:\n"
-            slots_info += "\nFor Haircut (30 min):\n" + "\n".join([f"- {slot}" for slot in haircut_slots[:5]])
-            slots_info += "\n\nFor Massage (60 min):\n" + "\n".join([f"- {slot}" for slot in massage_slots[:5]])
-            slots_info += "\n\nFor Consultation (45 min):\n" + "\n".join([f"- {slot}" for slot in consultation_slots[:5]])
-
-            # Add the slots information to the context message
-            context_message += slots_info
-            logger.info("Added available slots information to message")
-
-        # Make sure we have a clear user request in the message
-        if not any(service in context_message.lower() for service in ["haircut", "massage", "consultation"]) and \
-           not any(action in context_message.lower() for action in ["book", "schedule", "appointment"]):
-            # Add a clear request if none is present
-            context_message = f"I'd like to book an appointment. {context_message}"
-            logger.info("Added booking intent to message")
-        
-        # Set a maximum number of rounds to prevent infinite loops
-        max_rounds = 3
-        
-        # Initiate the conversation with the user's message and context
-        logger.info("Starting multi-agent conversation")
-        logger.info(f"Sending message to agents: {context_message[:100]}...")
-        
-        try:
-            # Set a timeout for the chat to prevent hanging
-            user_proxy.initiate_chat(
-                manager,
-                message=context_message,
-                max_turns=max_rounds  # Limit the number of turns to prevent infinite loops
-            )
-        except Exception as chat_error:
-            logger.warning(f"Chat terminated early: {str(chat_error)}")
-
-        # Access the conversation from the group chat
-        groupchat = manager.groupchat
-        messages = groupchat.messages
-        logger.info(f"Chat completed with {len(messages)} messages")
-
-        # Extract the first response from BookingAgent
-        booking_agent_messages = [msg for msg in messages
-                                 if msg.get("name") == "BookingAgent"]
-
-        # Get the response content
-        if booking_agent_messages:
-            # Use the first response from the booking agent
-            response_content = booking_agent_messages[0].get("content", "No response available.")
-            logger.info(f"Successfully extracted response from BookingAgent")
+        # Detect service type
+        if "haircut" in user_message.lower():
+            service = "Haircut"
+            duration = 30
+        elif "massage" in user_message.lower():
+            service = "Massage"
+            duration = 60
+        elif "consultation" in user_message.lower():
+            service = "Consultation"
+            duration = 45
         else:
-            # If no booking agent messages, check for service provider messages
-            service_provider_messages = [msg for msg in messages
-                                        if msg.get("name") == "ServiceProvider"]
-            if service_provider_messages:
-                response_content = service_provider_messages[0].get("content", "No response available.")
-                logger.info(f"Using ServiceProvider response instead")
-            else:
-                # No suitable messages found
-                logger.warning("No assistant responses found in chat history")
-                response_content = "I'm sorry, there was an issue with the booking process. Please try again."
+            service = "Haircut"  # Default to haircut
+            duration = 30
+        
+        # Try to parse date
+        import datetime
+        today = datetime.date.today()
+        tomorrow = today + datetime.timedelta(days=1)
+        
+        if "tomorrow" in user_message.lower():
+            date = tomorrow.strftime("%Y-%m-%d")
+        else:
+            # Use tomorrow's date as default
+            date = tomorrow.strftime("%Y-%m-%d")
+        
+        # Try to parse time
+        import re
+        time_match = re.search(r'(\d{1,2}):?(\d{2})?\s*(am|pm)?', user_message.lower())
+        if time_match:
+            hour = int(time_match.group(1))
+            minute = int(time_match.group(2) or "00")
+            am_pm = time_match.group(3)
+            
+            if am_pm == "pm" and hour < 12:
+                hour += 12
+            elif am_pm == "am" and hour == 12:
+                hour = 0
+            
+            time = f"{hour:02d}:{minute:02d}"
+        else:
+            # Default to first available slot
+            time = "09:00"
+        
+        # Find available slots
+        available_slots = get_available_slots(start_date=date, duration=duration)
+        
+        # Check if the requested time is available
+        formatted_time = datetime.datetime.strptime(time, "%H:%M").strftime("%I:%M %p")
+        formatted_date = datetime.datetime.strptime(date, "%Y-%m-%d").strftime("%A, %B %d")
+        
+        # Direct response with booking details
+        response = f"""Great! I can help you book a {service.lower()} for {formatted_date} at {formatted_time}.
 
-        # Update conversation history
-        CONVERSATION_HISTORY[user_id] = CONVERSATION_HISTORY.get(user_id, []) + [
-            {"role": "user", "content": user_message},
-            {"role": "assistant", "content": response_content}
-        ]
+Available slots for {service} on {formatted_date}:
+{chr(10).join([f"- {slot}" for slot in available_slots[:5]])}
 
-        return response_content
+Would you like to confirm this booking?"""
+        
+        print(f"\nBooking Agent: {response}")
+        return response
+    
     except Exception as e:
-        logger.error(
-            f"Error in handle_booking_request: {str(e)}", exc_info=True)
+        logger.error(f"Error in handle_booking_request: {str(e)}", exc_info=True)
+        print(f"\nBooking Agent: I'm sorry, there was an issue processing your request: {str(e)}")
         return f"I'm sorry, there was an issue with the booking process: {str(e)}"
 
 

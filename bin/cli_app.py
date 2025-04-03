@@ -3,6 +3,8 @@ import os
 import sys
 import logging
 from dotenv import load_dotenv
+from functools import wraps
+import signal
 
 # Set up logging
 logging.basicConfig(
@@ -30,6 +32,37 @@ except ImportError as e:
     print(f"Error: Could not load agent module: {str(e)}")
     sys.exit(1)
 
+def timeout(seconds=0, minutes=0, hours=0):
+    """
+    Add a signal-based timeout to any function.
+    Usage:
+    @timeout(seconds=5)
+    def my_slow_function(...)
+    Args:
+    - seconds: The time limit, in seconds.
+    - minutes: The time limit, in minutes.
+    - hours: The time limit, in hours.
+    """
+    limit = seconds + 60 * minutes + 3600 * hours
+
+    def decorator(func):
+        def handler(signum, frame):
+            raise TimeoutError("timed out after {} seconds".format(limit))
+
+        def wrapper(*args, **kwargs):
+            try:
+                signal.signal(signal.SIGALRM, handler)
+                signal.alarm(limit)
+                result = func(*args, **kwargs)
+                signal.alarm(0)
+                return result
+            except TimeoutError as exc:
+                raise exc
+
+        return wrapper
+
+    return decorator
+
 def main():
     """
     Simple CLI interface for the booking agent.
@@ -56,11 +89,6 @@ def main():
             # Get user input
             user_input = input("\nYou: ").strip()
             
-            # Check for exit commands
-            if user_input.lower() in ['exit', 'quit', 'bye']:
-                print("\nThank you for using the Booking Agent. Goodbye!")
-                break
-                
             # Check for help command
             if user_input.lower() == 'help':
                 print("\nAvailable commands:")
@@ -74,12 +102,23 @@ def main():
                 print("- 'Can I schedule a massage for Friday afternoon?'")
                 continue
                 
-            # Process the user input
-            logger.info("User input: %s", user_input)
-            response = handle_booking_request(user_input, user_id)
+            # Process input with a timeout
+            @timeout(14)  # 14-second timeout
+            def process_input(user_input):
+                # Check for exit commands
+                if user_input.strip().lower() in ['exit', 'quit']:
+                    print("Thank you for using the Booking Agent. Goodbye!")
+                    sys.exit(0)
+                
+                # Process the booking request
+                try:
+                    response = handle_booking_request(user_input, user_id)
+                    # The response is now a string that can be directly printed
+                    print(f"\nBooking Agent: {response}")
+                except Exception as e:
+                    print(f"\nAn unexpected error occurred: {e}")
             
-            # Display the response
-            print(f"\nBooking Agent: {response}")
+            process_input(user_input)
             
         except KeyboardInterrupt:
             print("\n\nConversation interrupted. Goodbye!")

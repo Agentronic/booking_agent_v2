@@ -37,7 +37,7 @@ In fact, make the storage whatever you want it to be to minimize code complexity
 - There is no concept of time zones, DLS, leap years, any irregularity whatsoever
 - In fact, if it makes implementation easier, you can treat all months as if they have 30 days exactly. If it does not make things easier, don't do that.
 
-Write this code in Python in a single file, `slot_calendar.py`
+Write this code in Python in a single file, `app/slot_calendar.py`
 Step 1 is to create the access methods, but the do nothing.
   I will review the stubs before you proceed to next step
 Step 2 is to create the unit tests, which should fail because the methods are still just stubs

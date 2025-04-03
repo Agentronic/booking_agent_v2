@@ -10,14 +10,23 @@
 
 ## Key Files
 - `app.py`: Main application with Gradio interface
-- `agent.py`: AG2 multi-agent implementation
-- `basic_conversation.py`: Fallback conversation handler
-- `utils.py`: Utility functions for date/time handling
+- `app/`: Application source code
+  - `agent.py`: AG2 multi-agent implementation
+  - `simple_agent.py`: Simplified agent implementation
+  - `slot_calendar.py`: Calendar functionality
+  - `slot_calendar_tools.py`: Tools for calendar operations
+- `bin/`: Executable scripts
+  - `run_app.py`: Script to run the web interface
+  - `cli_app.py`: Command-line interface
+  - `run_debug.py`: Debug version of the application
+  - `unit-test.py`: Script to run all unit tests
+- `test/`: Unit tests
 
 ## Development Workflow
-1. Run linting: `pylint *.py`
-2. Run the application: `python app.py`
-3. Test with: `USE_BASIC_CONVERSATION=true python app.py` for basic mode
+1. Run linting: `pylint app/*.py bin/*.py`
+2. Run the application: `python bin/run_app.py`
+3. Test with: `USE_BASIC_CONVERSATION=true python bin/run_app.py` for basic mode
+4. Run unit tests: `python bin/unit-test.py`
 
 ## Environment Setup
 - Copy `dot_env.example` to `.env`

@@ -27,12 +27,17 @@ A generic booking agent built with AG2 (AutoGen) that mediates between service p
 
 3. Run the application:
    ```
-   python app.py
+   python bin/run_app.py
    ```
    
    To use the basic conversation handler instead of the AG2 multi-agent system:
    ```
-   USE_BASIC_CONVERSATION=true python app.py
+   USE_BASIC_CONVERSATION=true python bin/run_app.py
+   ```
+   
+   To run the CLI version:
+   ```
+   python bin/cli_app.py
    ```
 
 4. Open the web interface in your browser (the URL will be displayed in the terminal)
@@ -40,6 +45,17 @@ A generic booking agent built with AG2 (AutoGen) that mediates between service p
 ## Project Structure
 
 - `app.py`: Main application file with Gradio web interface
-- `agent.py`: AG2 multi-agent implementation with GroupChat
-- `PhasedImplementation.md`: Phased development plan
-- `architecture.md`: System architecture documentation
+- `app/`: Application source code
+  - `agent.py`: AG2 multi-agent implementation with GroupChat
+  - `simple_agent.py`: Simplified agent implementation
+  - `slot_calendar.py`: Calendar functionality
+  - `slot_calendar_tools.py`: Tools for calendar operations
+- `bin/`: Executable scripts
+  - `run_app.py`: Script to run the web interface
+  - `cli_app.py`: Command-line interface
+  - `run_debug.py`: Debug version of the application
+  - `unit-test.py`: Script to run all unit tests
+- `test/`: Unit tests
+- `doc/`: Documentation
+  - `PhasedImplementation.md`: Phased development plan
+  - `architecture.md`: System architecture documentation
