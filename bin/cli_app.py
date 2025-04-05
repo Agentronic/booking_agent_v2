@@ -6,6 +6,13 @@ from dotenv import load_dotenv
 from functools import wraps
 import signal
 
+# Debugpy configuration
+import debugpy
+debugpy.listen(('0.0.0.0', 5678))
+print("Waiting for debugger to attach...")
+debugpy.wait_for_client()
+print("Debugger attached!")
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -63,7 +70,7 @@ def timeout(seconds=0, minutes=0, hours=0):
 
     return decorator
 
-def main():
+async def main():
     """
     Simple CLI interface for the booking agent.
     Uses STDIN/STDOUT for interaction.
@@ -109,7 +116,7 @@ def main():
                     continue
                 
                 # Process the booking request using the centralized conversation handler
-                response = handle_conversation(user_input, user_id)
+                response = await handle_conversation(user_input, user_id)
                 print(f"\nBooking Agent: {response}")
                 
             except (KeyboardInterrupt, EOFError):
@@ -123,4 +130,5 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

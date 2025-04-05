@@ -15,7 +15,7 @@ from datetime import datetime, time, date as date_obj, timedelta
 from typing import List, Tuple, Optional
 
 # Set up logging
-log_dir = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) / 'logs'
+log_dir = Path(__file__).resolve().parents[2].joinpath('logs')
 log_dir.mkdir(exist_ok=True)
 log_file = log_dir / 'slot_calendar.log'
 
@@ -349,5 +349,5 @@ def next_available_slot(after_date_time: Tuple[str, str], duration: int) -> Opti
 # --- Initialization ---
 # Automatically setup database when module is imported
 # Consider if this is desired, or if setup should be explicit
-# setup_database()
+setup_database()
 # print(f"slot_calendar module loaded. DB Path: {DB_PATH}")
