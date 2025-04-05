@@ -102,6 +102,9 @@ def create_agents():
         - Massage (60 min)
         - Consultation (45 min)
         
+        IMPORTANT: You must ALWAYS use the tools via slot_calendar_tools for any availability or booking operations.
+        NEVER make assumptions or best guesses about availability or bookings.
+
         You have access to a calendar system to check availability and book appointments.
         Use the following calendar tools when needed:
         

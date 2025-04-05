@@ -9,8 +9,25 @@ integration with external calendar services.
 
 import sqlite3
 import os
+import logging
+from pathlib import Path
 from datetime import datetime, time, date as date_obj, timedelta
 from typing import List, Tuple, Optional
+
+# Set up logging
+log_dir = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) / 'logs'
+log_dir.mkdir(exist_ok=True)
+log_file = log_dir / 'slot_calendar.log'
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()  # Also log to console for development
+    ]
+)
+logger = logging.getLogger('slot_calendar')
 
 # Database configuration
 DB_NAME = 'calendar.db'
@@ -27,7 +44,7 @@ def setup_database(db_path: str = DB_PATH):
     Args:
         db_path: The path to the database file. Defaults to DB_PATH.
     """
-    print(f"Setting up database at: {db_path}")
+    logger.info(f"Setting up database at: {db_path}")
     # Ensure the directory exists
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     try:
@@ -51,9 +68,9 @@ def setup_database(db_path: str = DB_PATH):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_booking_date ON bookings (date);")
         conn.commit()
         conn.close()
-        print("Database setup complete.")
+        logger.info("Database setup complete.")
     except sqlite3.Error as e:
-        print(f"Database error during setup: {e}")
+        logger.error(f"Database error during setup: {e}")
         raise # Re-raise the exception
 
 # --- Helper Functions ---
@@ -136,10 +153,10 @@ def is_slot_available(date: str, time: str, duration: int) -> bool:
         return overlapping_booking is None # Available if no overlap found
 
     except sqlite3.Error as e:
-        print(f"Database error in is_slot_available: {e}")
+        logger.error(f"Database error in is_slot_available: {e}")
         return False # Treat database errors as unavailable for safety
     except ValueError as e:
-        print(f"Input error in is_slot_available: {e}")
+        logger.error(f"Input error in is_slot_available: {e}")
         return False # Invalid input means slot is not available in the requested format
 
 def book_slot(date: str, start_time: str, duration: int, client_id: str, service_name: str) -> Optional[int]:
@@ -158,20 +175,26 @@ def book_slot(date: str, start_time: str, duration: int, client_id: str, service
     Raises:
         ValueError: If the slot is not available or input is invalid.
     """
+    logger.debug(f"book_slot entered with: date={date}, start_time={start_time}, duration={duration}, client_id={client_id}, service_name={service_name}")
+    
     _validate_duration(duration)
     # Basic input validation
     if len(client_id) > 32:
+        logger.warning(f"book_slot: client_id too long: {len(client_id)} chars")
         raise ValueError("client_id cannot exceed 32 characters.")
     if len(service_name) > 100:
+        logger.warning(f"book_slot: service_name too long: {len(service_name)} chars")
         raise ValueError("service_name cannot exceed 100 characters.")
 
     if not is_slot_available(date, start_time, duration):
+        logger.warning(f"book_slot: slot not available: {date} {start_time} for {duration} minutes")
         raise ValueError(f"Slot {date} {start_time} for {duration} minutes is not available.")
 
     try:
         req_start_dt = _combine_datetime(_parse_date(date), _parse_time(start_time))
         req_end_dt = _calculate_end_datetime(req_start_dt, duration)
         end_time_str = _format_time(req_end_dt.time())
+        logger.debug(f"book_slot: calculated end_time: {end_time_str}")
 
         conn = sqlite3.connect(DB_PATH)
         with conn:
@@ -181,10 +204,11 @@ def book_slot(date: str, start_time: str, duration: int, client_id: str, service
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (date, start_time, end_time_str, duration, client_id, service_name))
             booking_id = cursor.lastrowid # Get the auto-generated ID
-        print(f"Successfully booked slot {date} {start_time}, Booking ID: {booking_id}")
+            logger.debug(f"book_slot: inserted booking with ID: {booking_id}")
+            logger.info(f"book_slot: successfully booked slot {date} {start_time}, Booking ID: {booking_id}")
         return booking_id
     except sqlite3.Error as e:
-        print(f"Database error during booking: {e}")
+        logger.error(f"book_slot: database error: {str(e)}", exc_info=True)
         # If it was an integrity error (like UNIQUE constraint if re-enabled), raise ValueError
         if "UNIQUE constraint failed" in str(e):
              raise ValueError(f"Slot {date} {start_time} for {duration} minutes is not available (database constraint).") from e
@@ -201,7 +225,7 @@ def cancel_booking(booking_id: int) -> bool:
         True if the booking was successfully cancelled, False otherwise (e.g., booking ID not found).
     """
     if not isinstance(booking_id, int) or booking_id <= 0:
-        print("Invalid booking_id provided.")
+        logger.warning("Invalid booking_id provided.")
         return False
 
     try:
@@ -213,13 +237,13 @@ def cancel_booking(booking_id: int) -> bool:
         # total_changes counts changes in the current transaction *before* commit.
         # For DELETE, check cursor.rowcount after execute.
         if cursor.rowcount > 0:
-             print(f"Successfully cancelled booking ID: {booking_id}")
+             logger.info(f"Successfully cancelled booking ID: {booking_id}")
              return True
         else:
-             print(f"Booking ID not found: {booking_id}")
+             logger.warning(f"Booking ID not found: {booking_id}")
              return False
     except sqlite3.Error as e:
-        print(f"Database error during cancellation: {e}")
+        logger.error(f"Database error during cancellation: {e}")
         return False
 
 
@@ -258,10 +282,10 @@ def slots_available_on_day(date: str, duration: int) -> List[str]:
         return available_slots
 
     except ValueError as e:
-        print(f"Input error in slots_available_on_day: {e}")
+        logger.error(f"Input error in slots_available_on_day: {e}")
         return []
     except sqlite3.Error as e:
-        print(f"Database error in slots_available_on_day: {e}")
+        logger.error(f"Database error in slots_available_on_day: {e}")
         return []
 
 
@@ -315,10 +339,10 @@ def next_available_slot(after_date_time: Tuple[str, str], duration: int) -> Opti
         return None # Should ideally not be reached if search is long enough
 
     except ValueError as e:
-        print(f"Input error in next_available_slot: {e}")
+        logger.error(f"Input error in next_available_slot: {e}")
         return None
     except sqlite3.Error as e:
-        print(f"Database error in next_available_slot: {e}")
+        logger.error(f"Database error in next_available_slot: {e}")
         return None
 
 
