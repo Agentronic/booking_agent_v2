@@ -15,7 +15,7 @@ from datetime import datetime, time, date as date_obj, timedelta
 from typing import List, Tuple, Optional
 
 # Set up logging
-log_dir = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) / 'logs'
+log_dir = Path(__file__).resolve().parents[2].joinpath('logs')
 log_dir.mkdir(exist_ok=True)
 log_file = log_dir / 'slot_calendar.log'
 
