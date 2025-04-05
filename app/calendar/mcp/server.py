@@ -86,15 +86,42 @@ def main(port: int, transport: str) -> int:
                 raise
         
         elif name == "cancel_booking":
-            return cancel_booking(
-                arguments["booking_id"]
-            )
+            logger.debug(f"cancel_booking called with args: {arguments}")
+            try:
+                result = cancel_booking(
+                    arguments["booking_id"]
+                )
+                logger.debug(f"cancel_booking returned: {result} (type: {type(result)})")
+                return [types.TextContent(
+                    type="text",
+                    text=f"Booking {arguments['booking_id']} has been cancelled successfully."
+                )]
+            except Exception as e:
+                logger.error(f"cancel_booking raised exception: {str(e)}", exc_info=True)
+                raise
         
         elif name == "slots_available_on_day":
-            return slots_available_on_day(
-                arguments["date"],
-                arguments["duration"]
-            )
+            logger.debug(f"slots_available_on_day called with args: {arguments}")
+            try:
+                result = slots_available_on_day(
+                    arguments["date"],
+                    arguments["duration"]
+                )
+                logger.debug(f"slots_available_on_day returned: {result} (type: {type(result)})")
+                # Convert the slots result into a list of TextContent
+                if result:
+                    return [types.TextContent(
+                        type="text",
+                        text=f"Available slots on {arguments['date']}: {', '.join(result)}"
+                    )]
+                else:
+                    return [types.TextContent(
+                        type="text",
+                        text=f"No available slots found on {arguments['date']} for duration {arguments['duration']} minutes."
+                    )]
+            except Exception as e:
+                logger.error(f"slots_available_on_day raised exception: {str(e)}", exc_info=True)
+                raise
         
         else:
             raise ValueError(f"Unknown tool: {name}")
