@@ -332,36 +332,17 @@ class BookingAgentService:
         """
         logger.info(f"Processing message: {message} for user: {user_id}")
         
-        try:
-            # Get or initialize user state
-            user_state = self.get_user_state(user_id)
-            user_state["messages"].append({"role": "user", "content": message})
+        # Get or initialize user state
+        user_state = self.get_user_state(user_id)
+        user_state["messages"].append({"role": "user", "content": message})
+        
+        # Process the message based on current state
+        response = self.handle_booking_request(message, user_state)
+        
+        # Store the response
+        user_state["messages"].append({"role": "assistant", "content": response})
+        return response
             
-            # Process the message based on current state
-            response = self.handle_booking_request(message, user_state)
-            
-            # Store the response
-            user_state["messages"].append({"role": "assistant", "content": response})
-            return response
-            
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}", exc_info=True)
-            
-            try:
-                # Fallback to basic conversation
-                from basic_conversation import handle_conversation as basic_handler
-                basic_response = basic_handler(message)
-                
-                # Still maintain conversation history
-                if user_id in self.conversation_history:
-                    self.conversation_history[user_id]["messages"].append(
-                        {"role": "assistant", "content": basic_response}
-                    )
-                
-                return f"The booking system encountered an error. Falling back to basic mode. {basic_response}"
-            except Exception as fallback_error:
-                logger.error(f"Fallback also failed: {str(fallback_error)}", exc_info=True)
-                return f"I'm sorry, there was an issue with the booking system: {str(e)}"
     
     def handle_booking_request(self, user_message, user_state):
         """
@@ -544,12 +525,5 @@ def handle_conversation(message, user_id="default_user"):
     """
     logger.info(f"Received message: {message}")
     
-    try:
-        logger.info("Using BookingAgentService to handle message")
-        return booking_agent_service.process_message(message, user_id)
-    except Exception as e:
-        logger.error(f"BookingAgentService failed with error: {str(e)}", exc_info=True)
-        # Fallback to basic conversation handler if all else fails
-        from basic_conversation import handle_conversation as basic_handler
-        basic_response = basic_handler(message)
-        return f"The booking system encountered an error. Falling back to basic mode. {basic_response}"
+    logger.info("Using BookingAgentService to handle message")
+    return booking_agent_service.process_message(message, user_id)

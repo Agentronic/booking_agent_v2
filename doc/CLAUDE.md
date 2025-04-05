@@ -25,13 +25,11 @@
 ## Development Workflow
 1. Run linting: `pylint app/*.py bin/*.py`
 2. Run the application: `python bin/run_app.py`
-3. Test with: `USE_BASIC_CONVERSATION=true python bin/run_app.py` for basic mode
-4. Run unit tests: `python bin/unit-test.py`
+3. Run unit tests: `python bin/unit-test.py`
 
 ## Environment Setup
 - Copy `dot_env.example` to `.env`
 - Configure OpenAI API key in `.env`
-- Set `USE_BASIC_CONVERSATION=false` for AG2 mode
 - Set `AUTOGEN_USE_DOCKER=False` to run without Docker
 
 ## Implementation Status
@@ -44,6 +42,5 @@
 
 ## Technical Details
 - Conversation context is maintained between requests
-- Fallback to basic_conversation if AG2 fails
 - Three-agent design follows AutoGen best practices
 - OpenAI API is used for LLM capabilities
