@@ -1,4 +1,1 @@
-"""
-Calendar package for the booking agent.
-This package contains the calendar functionality for slot booking.
-"""
+# This file makes the 'calendar' directory a Python package.

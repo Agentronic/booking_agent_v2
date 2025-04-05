@@ -1,228 +1,329 @@
 #!/usr/bin/env python3
 """
-Simple Calendar Booking System
+Simple calendar booking system using SQLite.
 
-This module implements a simple calendar slot booking system with SQLite storage.
-It provides functionality to check availability, book slots, and release bookings.
+This module provides basic functions to manage and query appointment slots.
+It is designed to be simple and is intended as a placeholder until
+integration with external calendar services.
 """
 
 import sqlite3
-import datetime
-from typing import Tuple, Optional, List
+import os
+from datetime import datetime, time, date as date_obj, timedelta
+from typing import List, Tuple, Optional
 
-
-# Global variable to store the database name
-# This can be modified by tests to use a test database
+# Database configuration
 DB_NAME = 'calendar.db'
+# Determine project root assuming script is in app/calendar/
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.path.join(PROJECT_ROOT, DB_NAME)
+
+# --- Database Setup ---
+
+def setup_database(db_path: str = DB_PATH):
+    """
+    Initializes the SQLite database and the bookings table if they don't exist.
+
+    Args:
+        db_path: The path to the database file. Defaults to DB_PATH.
+    """
+    print(f"Setting up database at: {db_path}")
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bookings (
+            booking_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL, -- Store end time for easier overlap checks
+            duration_minutes INTEGER NOT NULL,
+            customer_id TEXT NOT NULL,
+            service_name TEXT NOT NULL
+            -- UNIQUE constraint removed to allow manual ID setting if needed,
+            -- but overlap check in book_slot prevents double booking.
+            -- UNIQUE (date, start_time)
+        )
+        ''')
+        # Index for faster lookups by date
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_booking_date ON bookings (date);")
+        conn.commit()
+        conn.close()
+        print("Database setup complete.")
+    except sqlite3.Error as e:
+        print(f"Database error during setup: {e}")
+        raise # Re-raise the exception
+
+# --- Helper Functions ---
+
+def _validate_duration(duration: int):
+    """Raises ValueError if duration is not a positive multiple of 15."""
+    if not isinstance(duration, int) or duration <= 0 or duration % 15 != 0:
+        raise ValueError("Duration must be a positive integer multiple of 15 minutes.")
+
+def _parse_time(time_str: str) -> time:
+    """Parses HH:MM string to time object."""
+    return datetime.strptime(time_str, "%H:%M").time()
+
+def _format_time(time_obj: time) -> str:
+    """Formats time object to HH:MM string."""
+    return time_obj.strftime("%H:%M")
+
+def _parse_date(date_str: str) -> date_obj:
+    """Parses YYYY-MM-DD string to date object."""
+    return datetime.strptime(date_str, "%Y-%m-%d").date()
+
+def _combine_datetime(date_val: date_obj, time_val: time) -> datetime:
+    """Combines date and time objects into a datetime object."""
+    return datetime.combine(date_val, time_val)
+
+def _calculate_end_datetime(start_dt: datetime, duration: int) -> datetime:
+    """Calculates end datetime given start and duration."""
+    return start_dt + timedelta(minutes=duration)
+
+# --- Core Calendar Functions ---
+
+def is_slot_available(date: str, time: str, duration: int) -> bool:
+    """
+    Checks if the entire time slot from the given date and time, lasting
+    for the specified duration, is available.
+
+    Args:
+        date: The date in YYYY-MM-DD format.
+        time: The start time in HH:MM format.
+        duration: The duration in minutes (multiple of 15).
+
+    Returns:
+        True if the slot is available, False otherwise.
+    """
+    _validate_duration(duration)
+    try:
+        req_start_dt = _combine_datetime(_parse_date(date), _parse_time(time))
+        req_end_dt = _calculate_end_datetime(req_start_dt, duration)
+
+        conn = sqlite3.connect(DB_PATH)
+        # Use context manager for connection
+        with conn:
+            cursor = conn.cursor()
+            # Query for bookings that overlap with the requested slot on the same date
+            # Overlap conditions:
+            # 1. Existing booking starts during the requested slot (exclusive of end time)
+            # 2. Existing booking ends during the requested slot (exclusive of start time)
+            # 3. Existing booking completely contains the requested slot
+            cursor.execute("""
+                SELECT 1 FROM bookings
+                WHERE date = ? AND (
+                    (start_time < ? AND end_time > ?) OR -- Existing overlaps requested start
+                    (start_time < ? AND end_time > ?) OR -- Existing overlaps requested end
+                    (start_time >= ? AND end_time <= ?)   -- Existing contained within requested (shouldn't happen with above checks but safe)
+                ) LIMIT 1
+            """, (date, _format_time(req_end_dt.time()), _format_time(req_start_dt.time()), # Cond 1 & 2 combined
+                  _format_time(req_end_dt.time()), _format_time(req_start_dt.time()), # Redundant but clearer
+                  _format_time(req_start_dt.time()), _format_time(req_end_dt.time()) # Cond 3
+                 ))
+            # Simplified overlap check: An overlap occurs if the requested slot's start time is before an existing slot's end time,
+            # AND the requested slot's end time is after the existing slot's start time.
+            cursor.execute("""
+                SELECT 1 FROM bookings
+                WHERE date = ? AND end_time > ? AND start_time < ?
+                LIMIT 1
+            """, (date, time, _format_time(req_end_dt.time())))
+
+            overlapping_booking = cursor.fetchone()
+
+        return overlapping_booking is None # Available if no overlap found
+
+    except sqlite3.Error as e:
+        print(f"Database error in is_slot_available: {e}")
+        return False # Treat database errors as unavailable for safety
+    except ValueError as e:
+        print(f"Input error in is_slot_available: {e}")
+        return False # Invalid input means slot is not available in the requested format
+
+def book_slot(date: str, start_time: str, duration: int, client_id: str, service_name: str) -> Optional[int]:
+    """
+    Marks the specified time slot as booked if available.
+
+    Args:
+        date: The date in YYYY-MM-DD format.
+        start_time: The start time in HH:MM format.
+        duration: The duration in minutes (multiple of 15).
+        client_id: An identifier for the client booking the slot (max 32 chars).
+        service_name: The name of the service being booked (max 100 chars).
+
+    Returns:
+        The unique booking ID if successful.
+    Raises:
+        ValueError: If the slot is not available or input is invalid.
+    """
+    _validate_duration(duration)
+    # Basic input validation
+    if len(client_id) > 32:
+        raise ValueError("client_id cannot exceed 32 characters.")
+    if len(service_name) > 100:
+        raise ValueError("service_name cannot exceed 100 characters.")
+
+    if not is_slot_available(date, start_time, duration):
+        raise ValueError(f"Slot {date} {start_time} for {duration} minutes is not available.")
+
+    try:
+        req_start_dt = _combine_datetime(_parse_date(date), _parse_time(start_time))
+        req_end_dt = _calculate_end_datetime(req_start_dt, duration)
+        end_time_str = _format_time(req_end_dt.time())
+
+        conn = sqlite3.connect(DB_PATH)
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO bookings (date, start_time, end_time, duration_minutes, customer_id, service_name)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (date, start_time, end_time_str, duration, client_id, service_name))
+            booking_id = cursor.lastrowid # Get the auto-generated ID
+        print(f"Successfully booked slot {date} {start_time}, Booking ID: {booking_id}")
+        return booking_id
+    except sqlite3.Error as e:
+        print(f"Database error during booking: {e}")
+        # If it was an integrity error (like UNIQUE constraint if re-enabled), raise ValueError
+        if "UNIQUE constraint failed" in str(e):
+             raise ValueError(f"Slot {date} {start_time} for {duration} minutes is not available (database constraint).") from e
+        raise # Re-raise other database errors
+
+def cancel_booking(booking_id: int) -> bool:
+    """
+    Deletes the booking with the specified ID, releasing the time slot.
+
+    Args:
+        booking_id: The unique ID of the booking to cancel.
+
+    Returns:
+        True if the booking was successfully cancelled, False otherwise (e.g., booking ID not found).
+    """
+    if not isinstance(booking_id, int) or booking_id <= 0:
+        print("Invalid booking_id provided.")
+        return False
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM bookings WHERE booking_id = ?", (booking_id,))
+            changes = conn.total_changes
+        # total_changes counts changes in the current transaction *before* commit.
+        # For DELETE, check cursor.rowcount after execute.
+        if cursor.rowcount > 0:
+             print(f"Successfully cancelled booking ID: {booking_id}")
+             return True
+        else:
+             print(f"Booking ID not found: {booking_id}")
+             return False
+    except sqlite3.Error as e:
+        print(f"Database error during cancellation: {e}")
+        return False
 
 
-def setup_database():
+def slots_available_on_day(date: str, duration: int) -> List[str]:
     """
-    Initialize the SQLite database and create the necessary table if it doesn't exist.
+    Returns a list of available start times (HH:MM) on the given day
+    for slots of at least the given duration, aligned to 30-minute intervals.
+
+    Args:
+        date: The date in YYYY-MM-DD format.
+        duration: The required duration in minutes (multiple of 15).
+
+    Returns:
+        A list of available start times as strings (HH:MM), aligned to :00 or :30.
     """
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    # Create the bookings table if it doesn't exist
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS bookings (
-        date TEXT,
-        start_time TEXT,
-        duration_minutes INTEGER,
-        customer_id TEXT,
-        service_name TEXT,
-        PRIMARY KEY (date, start_time)
-    )
-    ''')
-    
-    conn.commit()
-    conn.close()
+    _validate_duration(duration)
+    available_slots = []
+    try:
+        target_date = _parse_date(date)
+        # Define typical working hours (e.g., 9 AM to 5 PM)
+        # Adjust as needed
+        day_start_time = time(9, 0)
+        day_end_time = time(17, 0) # Slots must *start* before 5 PM
+
+        current_check_time = day_start_time
+        while current_check_time < day_end_time:
+            time_str = _format_time(current_check_time)
+            if is_slot_available(date, time_str, duration):
+                available_slots.append(time_str)
+
+            # Move to the next 30-minute interval
+            current_dt = _combine_datetime(target_date, current_check_time)
+            next_dt = current_dt + timedelta(minutes=30)
+            current_check_time = next_dt.time()
+
+        return available_slots
+
+    except ValueError as e:
+        print(f"Input error in slots_available_on_day: {e}")
+        return []
+    except sqlite3.Error as e:
+        print(f"Database error in slots_available_on_day: {e}")
+        return []
 
 
 def next_available_slot(after_date_time: Tuple[str, str], duration: int) -> Optional[Tuple[str, str]]:
     """
-    Find the next available slot after the given date and time with at least the specified duration.
-    
+    Returns the next available date and time (YYYY-MM-DD, HH:MM) after the given
+    date/time where there is an available slot of at least the specified duration.
+    Searches indefinitely into the future.
+
     Args:
-        after_date_time: A tuple of (date, time) where date is in yyyy-mm-dd format and time is in hh:mm format
-        duration: Duration in minutes (must be a multiple of 15)
-    
+        after_date_time: A tuple containing the date (YYYY-MM-DD) and time (HH:MM)
+                         to search after.
+        duration: The required duration in minutes (multiple of 15).
+
     Returns:
-        A tuple of (date, time) for the next available slot, or None if no slot is found
+        A tuple (date, time) of the next available slot, or None if none found (highly unlikely).
     """
-    # Validate duration is a multiple of 15
-    if duration % 15 != 0:
-        raise ValueError("Duration must be a multiple of 15 minutes")
-    
-    date, time = after_date_time
-    
-    # Convert to datetime for easier manipulation
-    current_datetime = datetime.datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
-    
-    # Get all bookings from the database
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT date, start_time, duration_minutes FROM bookings ORDER BY date, start_time")
-    bookings = cursor.fetchall()
-    conn.close()
-    
-    # If no bookings, return the requested time
-    if not bookings:
-        return (date, time)
-    
-    # Convert bookings to datetime objects for easier comparison
-    booking_intervals = []
-    for booking_date, booking_time, booking_duration in bookings:
-        start_dt = datetime.datetime.strptime(f"{booking_date} {booking_time}", "%Y-%m-%d %H:%M")
-        end_dt = start_dt + datetime.timedelta(minutes=booking_duration)
-        booking_intervals.append((start_dt, end_dt))
-    
-    # Sort bookings by start time
-    booking_intervals.sort(key=lambda x: x[0])
-    
-    # Check if the requested time is available
-    candidate_start = current_datetime
-    candidate_end = candidate_start + datetime.timedelta(minutes=duration)
-    
-    while True:
-        # Check if this candidate time overlaps with any booking
-        overlaps = False
-        for start_dt, end_dt in booking_intervals:
-            # If candidate start is before booking end AND candidate end is after booking start
-            if candidate_start < end_dt and candidate_end > start_dt:
-                overlaps = True
-                # Move candidate start to the end of this booking
-                candidate_start = end_dt
-                candidate_end = candidate_start + datetime.timedelta(minutes=duration)
-                break
-        
-        if not overlaps:
-            # Found an available slot
-            return (candidate_start.strftime("%Y-%m-%d"), candidate_start.strftime("%H:%M"))
-        
-        # Safety check to prevent infinite loop (e.g., if we're looking too far in the future)
-        if candidate_start > current_datetime + datetime.timedelta(days=365):
-            return None
-
-
-def is_slot_available(date: str, time: str, duration: int) -> bool:
-    """
-    Check if a slot is available for the specified date, time, and duration.
-    
-    Args:
-        date: Date in yyyy-mm-dd format
-        time: Time in hh:mm format
-        duration: Duration in minutes (must be a multiple of 15)
-    
-    Returns:
-        True if the slot is available, False otherwise
-    """
-    # Validate duration is a multiple of 15
-    if duration % 15 != 0:
-        raise ValueError("Duration must be a multiple of 15 minutes")
-    
-    # Convert to datetime for easier manipulation
-    target_start = datetime.datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
-    target_end = target_start + datetime.timedelta(minutes=duration)
-    
-    # Get all bookings from the database
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT date, start_time, duration_minutes FROM bookings")
-    bookings = cursor.fetchall()
-    conn.close()
-    
-    # Check if the requested slot overlaps with any existing booking
-    for booking_date, booking_time, booking_duration in bookings:
-        booking_start = datetime.datetime.strptime(f"{booking_date} {booking_time}", "%Y-%m-%d %H:%M")
-        booking_end = booking_start + datetime.timedelta(minutes=booking_duration)
-        
-        # If target start is before booking end AND target end is after booking start, there's an overlap
-        if target_start < booking_end and target_end > booking_start:
-            return False
-    
-    return True
-
-
-def book_slot(date: str, start_time: str, duration: int, client_id: str, service_name: str) -> bool:
-    """
-    Book a slot for the specified date, time, duration, client, and service.
-    
-    Args:
-        date: Date in yyyy-mm-dd format
-        start_time: Start time in hh:mm format
-        duration: Duration in minutes (must be a multiple of 15)
-        client_id: Client identifier (up to 32 characters)
-        service_name: Service name (up to 100 characters)
-    
-    Returns:
-        True if booking was successful, False otherwise
-    """
-    # Validate duration is a multiple of 15
-    if duration % 15 != 0:
-        raise ValueError("Duration must be a multiple of 15 minutes")
-    
-    # Validate client_id and service_name lengths
-    if len(client_id) > 32:
-        raise ValueError("Client ID must be 32 characters or less")
-    if len(service_name) > 100:
-        raise ValueError("Service name must be 100 characters or less")
-    
-    # Check if the slot is available
-    if not is_slot_available(date, start_time, duration):
-        return False
-    
-    # Insert the booking into the database
+    _validate_duration(duration)
     try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO bookings (date, start_time, duration_minutes, customer_id, service_name) VALUES (?, ?, ?, ?, ?)",
-            (date, start_time, duration, client_id, service_name)
-        )
-        conn.commit()
-        conn.close()
-        return True
-    except sqlite3.Error:
-        # Could be a primary key violation or other database error
-        return False
+        start_date_str, start_time_str = after_date_time
+        current_dt = _combine_datetime(_parse_date(start_date_str), _parse_time(start_time_str))
+
+        # Start checking from the next 15-minute interval
+        minute_offset = 15 - (current_dt.minute % 15)
+        if minute_offset == 15: minute_offset = 0 # Already aligned
+        current_dt += timedelta(minutes=minute_offset)
+
+        # Limit search range for practical purposes (e.g., 1 year)
+        search_limit_dt = current_dt + timedelta(days=365)
+
+        while current_dt < search_limit_dt:
+            # Define working hours (e.g., 9 AM to 5 PM) - skip checks outside these hours
+            if not (time(9, 0) <= current_dt.time() < time(17, 0)):
+                # If before 9 AM, jump to 9 AM
+                if current_dt.time() < time(9, 0):
+                    current_dt = datetime.combine(current_dt.date(), time(9, 0))
+                # If 5 PM or later, jump to 9 AM next day
+                else:
+                    current_dt = datetime.combine(current_dt.date() + timedelta(days=1), time(9, 0))
+                continue # Re-evaluate the loop condition with the new time
+
+            date_str = current_dt.strftime("%Y-%m-%d")
+            time_str = _format_time(current_dt.time())
+
+            if is_slot_available(date_str, time_str, duration):
+                return (date_str, time_str)
+
+            # Move to the next 15-minute interval
+            current_dt += timedelta(minutes=15)
+
+        return None # Should ideally not be reached if search is long enough
+
+    except ValueError as e:
+        print(f"Input error in next_available_slot: {e}")
+        return None
+    except sqlite3.Error as e:
+        print(f"Database error in next_available_slot: {e}")
+        return None
 
 
-def release_slot(date: str, start_time: str) -> bool:
-    """
-    Release a booking at the specified date and time.
-    
-    Args:
-        date: Date in yyyy-mm-dd format
-        start_time: Start time in hh:mm format
-    
-    Returns:
-        True if release was successful, False otherwise
-    """
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    
-    # Check if the booking exists
-    cursor.execute(
-        "SELECT COUNT(*) FROM bookings WHERE date = ? AND start_time = ?",
-        (date, start_time)
-    )
-    count = cursor.fetchone()[0]
-    
-    if count == 0:
-        conn.close()
-        return False
-    
-    # Delete the booking
-    cursor.execute(
-        "DELETE FROM bookings WHERE date = ? AND start_time = ?",
-        (date, start_time)
-    )
-    conn.commit()
-    conn.close()
-    
-    return True
-
-
-# Initialize the database when the module is imported
-setup_database()
+# --- Initialization ---
+# Automatically setup database when module is imported
+# Consider if this is desired, or if setup should be explicit
+# setup_database()
+# print(f"slot_calendar module loaded. DB Path: {DB_PATH}")
