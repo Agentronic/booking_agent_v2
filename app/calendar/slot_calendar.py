@@ -349,5 +349,5 @@ def next_available_slot(after_date_time: Tuple[str, str], duration: int) -> Opti
 # --- Initialization ---
 # Automatically setup database when module is imported
 # Consider if this is desired, or if setup should be explicit
-# setup_database()
+setup_database()
 # print(f"slot_calendar module loaded. DB Path: {DB_PATH}")
