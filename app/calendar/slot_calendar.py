@@ -30,10 +30,9 @@ logging.basicConfig(
 logger = logging.getLogger('slot_calendar')
 
 # Database configuration
-DB_NAME = 'calendar.db'
 # Determine project root assuming script is in app/calendar/
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DB_PATH = os.path.join(PROJECT_ROOT, DB_NAME)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DB_PATH = str(PROJECT_ROOT / 'data' / 'calendar.db')
 
 # --- Database Setup ---
 
