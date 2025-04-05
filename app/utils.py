@@ -10,15 +10,3 @@ def parse_datetime(date_str, time_str=None):
 def format_datetime(dt):
     """Format a datetime object into a readable string."""
     return dt.strftime("%Y-%m-%d %H:%M")
-
-def get_time_slots(start_time, end_time, duration_minutes=30):
-    """Generate time slots between start_time and end_time with given duration."""
-    slots = []
-    current = start_time
-    delta = timedelta(minutes=duration_minutes)
-    
-    while current + delta <= end_time:
-        slots.append((current, current + delta))
-        current += delta
-    
-    return slots
