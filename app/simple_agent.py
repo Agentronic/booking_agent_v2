@@ -26,8 +26,8 @@ load_dotenv()
 
 # Import calendar tools
 try:
-    from app import slot_calendar
-    from app import slot_calendar_tools
+    from app.calendar import slot_calendar
+    from app.calendar import slot_calendar_tools
     logger.info("Successfully imported calendar tools")
 except ImportError as e:
     logger.error("Failed to import calendar tools: %s", e, exc_info=True)

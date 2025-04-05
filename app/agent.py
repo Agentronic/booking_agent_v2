@@ -14,7 +14,7 @@ import os
 import logging
 from dotenv import load_dotenv
 import json
-from app import slot_calendar_tools
+from app.calendar import slot_calendar_tools
 
 # Load environment variables from .env file
 load_dotenv()
