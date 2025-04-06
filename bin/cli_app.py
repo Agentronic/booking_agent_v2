@@ -7,11 +7,12 @@ from functools import wraps
 import signal
 
 # Debugpy configuration
-import debugpy
-debugpy.listen(('0.0.0.0', 5678))
-# print("Waiting for debugger to attach...")
-# debugpy.wait_for_client()
-print("Debugger attached!")
+try:
+    import debugpy
+    debugpy.listen(('0.0.0.0', 5679))  # Use a different port to avoid conflicts
+    print("Debugger attached on port 5679!")
+except Exception as e:
+    print(f"Could not initialize debugger: {e}")
 
 # Set up logging
 logging.basicConfig(

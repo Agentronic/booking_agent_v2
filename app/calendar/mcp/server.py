@@ -33,6 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger('mcp_server')
 
 # Import the existing slot calendar functionality
+# Use the direct import from parent directory
 from slot_calendar import (
     is_slot_available,
     book_slot,

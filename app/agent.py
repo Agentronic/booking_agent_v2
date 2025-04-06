@@ -7,7 +7,7 @@ Implements three specialized agents:
 """
 
 import autogen
-from utils import parse_datetime, format_datetime, get_time_slots
+from app.utils import parse_datetime, format_datetime
 from datetime import datetime, timedelta
 import random
 import os
@@ -206,9 +206,9 @@ class BookingAgentService:
             while not end_of_day:
                 # Ask Service Provider Agent to check slot availability
                 message = f"Check if slot is available on {current_date} at {current_time} for {duration} minutes"
-                result = await service_provider.a_run(
+                result = await self.service_provider.a_run(
                     message=message,
-                    tools=service_provider.tools,
+                    tools=self.service_provider.tools,
                     max_turns=2
                 )
                 
