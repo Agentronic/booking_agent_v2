@@ -45,8 +45,8 @@ Today we implemented a three-agent booking system using AutoGen (AG2) framework 
 
 ### 1. Directory Structure Reorganization
 - Created a more organized project structure with dedicated directories:
-  - `app/`: Application source code (agent.py, simple_agent.py, slot_calendar.py, slot_calendar_tools.py)
-  - `bin/`: Executable scripts (run_app.py, cli_app.py, run_debug.py, unit-test.py)
+  - `app/`: Application source code 
+  - `bin/`: Executable scripts
   - `test/`: Test files
 - Removed redundant files (simple_cli.py)
 
