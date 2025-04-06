@@ -15,18 +15,8 @@ load_dotenv()
 print(f"Python version: {sys.version}")
 print(f"Current directory: {os.getcwd()}")
 
-# Define a simple conversation handler for testing
-def simple_handle_conversation(message, user_id="default_user"):
-    logger.info(f"Processing message: {message}")
-    return f"You said: {message}\n\nThis is a simplified response for testing purposes."
-
-# Try to import the real conversation handler
-try:
-    from app.agent import handle_conversation
-    logger.info("Successfully imported AG2 multi-agent conversation handler")
-except Exception as e:
-    logger.error(f"Failed to load AG2 agent: {e}. Using simple conversation handler as fallback", exc_info=True)
-    handle_conversation = simple_handle_conversation
+from app.agent import handle_conversation
+logger.info("Successfully imported AG2 multi-agent conversation handler")
 
 def chat_interface(message, history):
     # Generate a user ID from the conversation history to maintain context

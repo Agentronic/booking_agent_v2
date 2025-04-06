@@ -7,7 +7,7 @@ Implements three specialized agents:
 """
 
 import autogen
-from utils import parse_datetime, format_datetime, get_time_slots
+from app.utils import parse_datetime, format_datetime
 from datetime import datetime, timedelta
 import random
 import os
