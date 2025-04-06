@@ -26,17 +26,17 @@ def main():
         import autogen
         logger.info("Autogen imported successfully")
         
-        logger.info("Importing slot_calendar_tools")
-        import slot_calendar_tools
-        logger.info("slot_calendar_tools imported successfully")
+        logger.info("Importing app.calendar.slot_calendar_tools")
+        from app.calendar import slot_calendar_tools
+        logger.info("app.calendar.slot_calendar_tools imported successfully")
         
-        logger.info("Importing slot_calendar")
-        import slot_calendar
-        logger.info("slot_calendar imported successfully")
+        logger.info("Importing app.calendar.slot_calendar")
+        from app.calendar import slot_calendar
+        logger.info("app.calendar.slot_calendar imported successfully")
         
         # Test app module imports
         logger.info("Importing app modules")
-        from app.agent import handle_booking_request
+        from app.agent import handle_conversation
         logger.info("app.agent imported successfully")
         
         logger.info("All imports successful!")
