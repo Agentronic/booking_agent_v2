@@ -12,7 +12,6 @@
 - `app.py`: Main application with Gradio interface
 - `app/`: Application source code
   - `agent.py`: AG2 multi-agent implementation
-  - `simple_agent.py`: Simplified agent implementation
   - `slot_calendar.py`: Calendar functionality
   - `slot_calendar_tools.py`: Tools for calendar operations
 - `bin/`: Executable scripts

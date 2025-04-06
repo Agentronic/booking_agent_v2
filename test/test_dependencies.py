@@ -39,9 +39,6 @@ def main():
         from app.agent import handle_booking_request
         logger.info("app.agent imported successfully")
         
-        from app.simple_agent import handle_simple_booking_request
-        logger.info("app.simple_agent imported successfully")
-        
         logger.info("All imports successful!")
         
     except Exception as e:
