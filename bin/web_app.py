@@ -15,11 +15,14 @@ def main():
         # Add the parent directory to the path so we can import modules
         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
-        # Import the app module
-        # We need to import the app.py module, not the app package
+        # Import app.utils for path handling
+        from app.utils import app_path
+        
+        # Import the app module from app directory
         import importlib.util
-        spec = importlib.util.spec_from_file_location("app_module", 
-                                                   os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py"))
+        app_file_path = app_path("app", "app.py")
+        
+        spec = importlib.util.spec_from_file_location("app_module", app_file_path)
         app_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(app_module)
         logger.info("Successfully imported app module")
