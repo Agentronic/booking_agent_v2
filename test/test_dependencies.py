@@ -13,9 +13,8 @@ def main():
     try:
         logger.info("Testing imports for booking agent application")
         
-        # Add the parent directory to the path so we can import modules
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        sys.path.append(project_root)
+        # No need to modify path - will be handled by pywrap
+        from app.utils import app_path
         
         # Import the necessary modules
         logger.info("Importing gradio")

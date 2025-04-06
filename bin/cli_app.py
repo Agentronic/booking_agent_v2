@@ -14,12 +14,19 @@ try:
 except Exception as e:
     print(f"Could not initialize debugger: {e}")
 
-# Set up logging
+# First import app_path
+from app.utils import app_path
+
+# Create logs directory if it doesn't exist
+logs_dir = app_path('logs')
+os.makedirs(logs_dir, exist_ok=True)
+
+# Set up logging with proper path
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("booking_cli.log"),
+        logging.FileHandler(os.path.join(logs_dir, "booking_cli.log")),
         logging.StreamHandler(sys.stderr)
     ]
 )
@@ -28,8 +35,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Add the parent directory to the path so we can import modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# No need to modify path - will be handled by pywrap
 
 # Import the conversation handler
 try:

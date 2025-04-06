@@ -10,9 +10,10 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import List, Tuple
 
-# Add the parent directory to the path so we can import modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# Corrected import path if necessary (assuming slot_calendar is directly in app/calendar)
+# No need to modify path - will be handled by pywrap
+# Import utils after path is set up
+from app.utils import app_path
+# Import the calendar module
 from app.calendar import slot_calendar
 
 
@@ -20,7 +21,7 @@ class TestCalendarBookingSystem(unittest.TestCase):
     """Test cases for the calendar booking system."""
 
     TEST_DB = 'test_calendar.db'
-    DB_PATH = os.path.join(os.path.dirname(__file__), TEST_DB) # Store test db in test dir
+    DB_PATH = os.path.join(app_path('test'), TEST_DB) # Store test db in test dir
 
     @classmethod
     def setUpClass(cls):

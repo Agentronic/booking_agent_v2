@@ -14,11 +14,13 @@ import sys
 import logging
 from pathlib import Path
 
-# Add parent directory to path to allow importing slot_calendar
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# No need to modify path - will be handled by pywrap
+
+# Import utils after path is set up
+from app.utils import app_path
 
 # Set up logging
-log_dir = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))) / 'logs'
+log_dir = app_path('logs')
 log_dir.mkdir(exist_ok=True)
 log_file = log_dir / 'mcp_server.log'
 
@@ -33,8 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger('mcp_server')
 
 # Import the existing slot calendar functionality
-# Use the direct import from parent directory
-from slot_calendar import (
+from app.calendar.slot_calendar import (
     is_slot_available,
     book_slot,
     cancel_booking,

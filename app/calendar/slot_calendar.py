@@ -14,8 +14,12 @@ from pathlib import Path
 from datetime import datetime, time, date as date_obj, timedelta
 from typing import List, Tuple, Optional
 
+# No need to modify path - will be handled by pywrap
+# Import utils after path is set up
+from app.utils import app_path
+
 # Set up logging
-log_dir = Path(__file__).resolve().parents[2].joinpath('logs')
+log_dir = app_path('logs')
 log_dir.mkdir(exist_ok=True)
 log_file = log_dir / 'slot_calendar.log'
 
@@ -30,9 +34,8 @@ logging.basicConfig(
 logger = logging.getLogger('slot_calendar')
 
 # Database configuration
-# Determine project root assuming script is in app/calendar/
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = str(PROJECT_ROOT / 'data' / 'calendar.db')
+# Use app_path to determine paths
+DB_PATH = str(app_path('data', 'calendar.db'))
 
 # --- Database Setup ---
 
