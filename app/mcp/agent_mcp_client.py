@@ -5,8 +5,12 @@ This implementation follows the official AG2 MCP integration guidelines.
 
 import asyncio
 from pathlib import Path
+from datetime import datetime, timedelta
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from autogen import LLMConfig
+from autogen.agentchat import AssistantAgent
+from autogen.mcp import create_toolkit
 import logging
 import os
 from dotenv import load_dotenv
@@ -30,6 +34,8 @@ class MCPClient:
         self.session = None
         self.initialized = False
         self._lock = asyncio.Lock()
+        self.agent = None
+        self.toolkit = None
         
     async def initialize(self):
         """Initialize the MCP client session and create the toolkit."""
@@ -46,11 +52,36 @@ class MCPClient:
                 
                 # Start the client session
                 async with stdio_client(server_params) as (read, write), ClientSession(read, write) as session:
+                    self.session = session
+                    
                     # Initialize the session
                     await session.initialize()
-                    self.session = session
+                    
+                    # Create toolkit and agent after session initialization
+                    self.toolkit = await create_toolkit(session=session)
+                    self.agent = AssistantAgent(
+                        name="calendar_assistant",
+                        llm_config=LLMConfig(model="gpt-4-turbo-preview", api_type="openai")
+                    )
+                    # Register MCP tools with the agent
+                    self.toolkit.register_for_llm(self.agent)
+                    
+                    # List available tools and check tomorrow's availability
+                    tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
+
                     self.initialized = True
-                    logger.info("MCP client initialized successfully")
+                    logger.info("MCP client, and agent are initialized successfully")
+
+                    logger.info("Running agent...")
+                    result = await self.agent.a_run(
+                        message=f"Please list all available tools first, and then check appointment availability for tomorrow ({tomorrow})",
+                        tools=self.toolkit.tools,
+                        max_turns=2,
+                        user_input=False
+                    )
+                    await result.process()
+                    
+                    
                     
             except Exception as e:
                 logger.error(f"Error initializing MCP client: {str(e)}")
@@ -94,6 +125,7 @@ class MCPClient:
                 await self.session.close()
                 self.session = None
                 self.toolkit = None
+                self.agent = None
                 self.initialized = False
 
 # Create a global instance of the MCP client
