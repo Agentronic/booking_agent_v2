@@ -29,7 +29,7 @@ def dump_calendar_db(db_path=None):
     """
     # Use the default database path if none is provided
     if db_path is None:
-        db_path = os.path.join(project_root, slot_calendar.DB_NAME)
+        db_path = slot_calendar.DB_PATH
     
     # Check if the database file exists
     if not os.path.exists(db_path):
