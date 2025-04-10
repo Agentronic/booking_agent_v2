@@ -5,15 +5,16 @@ This implementation follows the official AG2 MCP integration guidelines.
 
 import asyncio
 from pathlib import Path
+from datetime import datetime, timedelta
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from autogen import LLMConfig
+from autogen.agentchat import AssistantAgent
+from autogen.mcp import create_toolkit
 import logging
 import os
-import sys
 from dotenv import load_dotenv
 import nest_asyncio
-from contextlib import AsyncExitStack
-from anyio import create_task_group
 
 # Apply nest_asyncio to allow nested event loops
 nest_asyncio.apply()
@@ -33,7 +34,8 @@ class MCPClient:
         self.session = None
         self.initialized = False
         self._lock = asyncio.Lock()
-        self._stack = None
+        self.agent = None
+        self.toolkit = None
         
     async def initialize(self):
         """Initialize the MCP client session and create the toolkit."""
@@ -47,35 +49,44 @@ class MCPClient:
                     command="python",
                     args=["app/calendar/mcp/server.py"]  # Path to your MCP server script
                 )
-
-                # Create a new exit stack for this initialization
-                self._stack = AsyncExitStack()
-                await self._stack.__aenter__()
                 
-                # Create and initialize the session
-                session, _ = await self.create_session(server_params)
-                await session.initialize()
-                self.session = session
-                self.initialized = True
-                logger.info("MCP client initialized successfully")
+                # Start the client session
+                async with stdio_client(server_params) as (read, write), ClientSession(read, write) as session:
+                    self.session = session
+                    
+                    # Initialize the session
+                    await session.initialize()
+                    
+                    # Create toolkit and agent after session initialization
+                    self.toolkit = await create_toolkit(session=session)
+                    self.agent = AssistantAgent(
+                        name="calendar_assistant",
+                        llm_config=LLMConfig(model="gpt-4-turbo-preview", api_type="openai")
+                    )
+                    # Register MCP tools with the agent
+                    self.toolkit.register_for_llm(self.agent)
+                    
+                    # List available tools and check tomorrow's availability
+                    tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
+
+                    self.initialized = True
+                    logger.info("MCP client, and agent are initialized successfully")
+
+                    logger.info("Running agent...")
+                    result = await self.agent.a_run(
+                        message=f"Please list all available tools first, and then check appointment availability for tomorrow ({tomorrow})",
+                        tools=self.toolkit.tools,
+                        max_turns=2,
+                        user_input=False
+                    )
+                    await result.process()
+                    
+                    
                     
             except Exception as e:
                 logger.error(f"Error initializing MCP client: {str(e)}")
-                if self._stack:
-                    await self._stack.__aexit__(*sys.exc_info())
-                    self._stack = None
                 self.initialized = False
                 raise
-    
-    async def create_session(self, server_params):
-        """Create a new MCP session with the given server parameters."""
-        try:
-            read, write = await self._stack.enter_async_context(stdio_client(server_params))
-            session = await self._stack.enter_async_context(ClientSession(read, write))
-            return session, self._stack
-        except Exception:
-            await self._stack.__aexit__(*sys.exc_info())
-            raise
     
     async def execute_tool(self, tool_name: str, **kwargs):
         """
@@ -113,7 +124,27 @@ class MCPClient:
             if self.session:
                 await self.session.close()
                 self.session = None
-                if self._stack:
-                    await self._stack.__aexit__(None, None, None)
-                    self._stack = None
+                self.toolkit = None
+                self.agent = None
                 self.initialized = False
+
+# Create a global instance of the MCP client
+mcp_client = MCPClient()
+
+# Initialize the client when the module is imported
+async def init_client():
+    try:
+        await mcp_client.initialize()
+    except Exception as e:
+        logger.error(f"Failed to initialize MCP client: {str(e)}")
+
+# Run the initialization in an event loop
+try:
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        # If the loop is already running, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    loop.run_until_complete(init_client())
+except Exception as e:
+    logger.error(f"Failed to initialize MCP client: {str(e)}") 

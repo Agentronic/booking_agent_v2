@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 import json
 from autogen.mcp import create_toolkit
 from app.mcp.client import MCPClient
+import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -44,12 +45,10 @@ config_list = [
     }
 ]
 
-client = MCPClient()
-
 # Agent definitions
 service_provider = None
 
-def create_agents():
+async def create_agents():
     """Create and configure the three specialized agents."""
     global service_provider
     
@@ -106,38 +105,30 @@ def create_agents():
         - Massage (60 min)
         - Consultation (45 min)
         
-        IMPORTANT: You must ALWAYS use the tools via mcp client(i.e. client.py) for any availability or booking operations.
+        IMPORTANT: You must ALWAYS use the tools from your toolkit(mcp) for any availability or booking operations.
         NEVER make assumptions or best guesses about availability or bookings, always use the tools.
         
         Always verify slot availability before confirming bookings. If a requested slot is unavailable,
         suggest alternative times using the find_next_available_slot tool.""",
         llm_config={"config_list": config_list}
     )
+
+    # Initialize the MCP client
+    client = MCPClient()
+    await client.initialize()  # Ensure the client is initialized
     
     # Create a toolkit instance using the MCP client session
-    toolkit = create_toolkit(session=client.session)
+    toolkit = await create_toolkit(session=client.session)
     
     # Register the toolkit with the service provider agent so it can use the tools
     toolkit.register_for_llm(service_provider)
-    
-    # TODO: Uncomment for future use
-    # Initialize the service provider agent by running an empty message
-    # This sets up the agent with the registered tools
-    # result = service_provider.a_run(
-    #     message="",  # Empty message for initialization
-    #     tools=toolkit.tools,  # Pass the registered tools
-    #     max_turns=2,  # Limit the number of turns for initialization
-    #     user_input=False,  # No user input needed for initialization
-    # )
-    # # Process the initialization result
-    # result.process()
 
     return user_proxy, booking_agent, service_provider
 
 
-def setup_group_chat():
+async def setup_group_chat():
     """Set up the group chat between the three agents."""
-    user_proxy, booking_agent, service_provider = create_agents()
+    user_proxy, booking_agent, service_provider = await create_agents()
 
     # Create a group chat with all three agents
     groupchat = autogen.GroupChat(
@@ -155,7 +146,6 @@ def setup_group_chat():
 
     return user_proxy, manager
 
-
 class BookingAgentService:
     """
     Central service that encapsulates all booking agent functionality.
@@ -167,7 +157,7 @@ class BookingAgentService:
         """Initialize the booking agent service."""
         # Maintain conversation state for each user
         self.conversation_history = {}
-        
+
         # Use the existing service provider agent
         self.service_provider = service_provider
     
@@ -208,7 +198,7 @@ class BookingAgentService:
                 message = f"Check if slot is available on {current_date} at {current_time} for {duration} minutes"
                 result = await service_provider.a_run(
                     message=message,
-                    tools=service_provider.tools,
+                    tools=service_provider.toolkit.tools,
                     max_turns=2
                 )
                 
@@ -296,7 +286,7 @@ class BookingAgentService:
                 message = f"Book a slot on {user_state['date']} at {user_state['time']} for {user_state['duration']} minutes for client {client_id} for service {user_state['service']}"
                 booking_result = await service_provider.a_run(
                     message=message,
-                    tools=service_provider.tools,
+                    tools=service_provider.toolkit.tools,
                     max_turns=2
                 )
                 
@@ -433,9 +423,6 @@ What service would you like to book?"""
             logger.error(f"Error in handle_booking_request: {str(e)}", exc_info=True)
             return f"I'm sorry, there was an issue with the booking process: {str(e)}"
 
-# Create a global instance of the booking agent service
-booking_agent_service = BookingAgentService()
-
 async def handle_conversation(message, user_id="default_user"):
     """
     Main entry point for the conversation system.
@@ -445,3 +432,9 @@ async def handle_conversation(message, user_id="default_user"):
     
     logger.info("Using BookingAgentService to handle message")
     return await booking_agent_service.process_message(message, user_id)
+
+# Initialize the booking agent service and group chat
+booking_agent_service = BookingAgentService()
+
+# Initialize the group chat
+asyncio.run(setup_group_chat())
