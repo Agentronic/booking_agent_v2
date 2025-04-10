@@ -105,7 +105,7 @@ async def create_agents():
         - Massage (60 min)
         - Consultation (45 min)
         
-        IMPORTANT: You must ALWAYS use the tools via mcp client using toolkit for any availability or booking operations.
+        IMPORTANT: You must ALWAYS use the tools from your toolkit(mcp) for any availability or booking operations.
         NEVER make assumptions or best guesses about availability or bookings, always use the tools.
         
         Always verify slot availability before confirming bookings. If a requested slot is unavailable,
@@ -146,7 +146,6 @@ async def setup_group_chat():
 
     return user_proxy, manager
 
-
 class BookingAgentService:
     """
     Central service that encapsulates all booking agent functionality.
@@ -158,7 +157,7 @@ class BookingAgentService:
         """Initialize the booking agent service."""
         # Maintain conversation state for each user
         self.conversation_history = {}
-        
+
         # Use the existing service provider agent
         self.service_provider = service_provider
     
@@ -199,7 +198,7 @@ class BookingAgentService:
                 message = f"Check if slot is available on {current_date} at {current_time} for {duration} minutes"
                 result = await service_provider.a_run(
                     message=message,
-                    tools=service_provider.tools,
+                    tools=service_provider.toolkit.tools,
                     max_turns=2
                 )
                 
@@ -287,7 +286,7 @@ class BookingAgentService:
                 message = f"Book a slot on {user_state['date']} at {user_state['time']} for {user_state['duration']} minutes for client {client_id} for service {user_state['service']}"
                 booking_result = await service_provider.a_run(
                     message=message,
-                    tools=service_provider.tools,
+                    tools=service_provider.toolkit.tools,
                     max_turns=2
                 )
                 
@@ -424,29 +423,6 @@ What service would you like to book?"""
             logger.error(f"Error in handle_booking_request: {str(e)}", exc_info=True)
             return f"I'm sorry, there was an issue with the booking process: {str(e)}"
 
-# Create a global instance of the booking agent service
-booking_agent_service = None
-
-def get_booking_agent_service():
-    """Get the booking agent service instance, initializing it if necessary."""
-    global booking_agent_service
-    if booking_agent_service is None:
-        # Create a new event loop for initialization
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # Initialize the service
-        loop.run_until_complete(setup_group_chat())
-        booking_agent_service = BookingAgentService()
-        
-        # Clean up the loop
-        loop.close()
-    
-    return booking_agent_service
-
-# Initialize the service when the module is imported
-get_booking_agent_service()
-
 async def handle_conversation(message, user_id="default_user"):
     """
     Main entry point for the conversation system.
@@ -455,4 +431,10 @@ async def handle_conversation(message, user_id="default_user"):
     logger.info(f"Received message: {message}")
     
     logger.info("Using BookingAgentService to handle message")
-    return await get_booking_agent_service().process_message(message, user_id)
+    return await booking_agent_service.process_message(message, user_id)
+
+# Initialize the booking agent service and group chat
+booking_agent_service = BookingAgentService()
+
+# Initialize the group chat
+asyncio.run(setup_group_chat())
