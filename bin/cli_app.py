@@ -32,7 +32,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the conversation handler
 try:
-    from app.agent import handle_conversation
+    from app.agent import conversational_round_trip
     logger.info("Successfully imported AG2 multi-agent conversation handler")
 except ImportError as e:
     logger.error("Failed to load AG2 agent: %s", e, exc_info=True)
@@ -116,7 +116,7 @@ async def main():
                     continue
                 
                 # Process the booking request using the centralized conversation handler
-                response = await handle_conversation(user_input, user_id)
+                response = await conversational_round_trip(user_input, user_id)
                 print(f"\nBooking Agent: {response}")
                 
             except (KeyboardInterrupt, EOFError):
