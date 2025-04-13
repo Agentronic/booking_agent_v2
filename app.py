@@ -15,7 +15,7 @@ load_dotenv()
 print(f"Python version: {sys.version}")
 print(f"Current directory: {os.getcwd()}")
 
-from app.agent import handle_conversation
+from app.agent import conversational_round_trip
 logger.info("Successfully imported AG2 multi-agent conversation handler")
 
 def chat_interface(message, history):
@@ -28,7 +28,7 @@ def chat_interface(message, history):
     
     try:
         # Get response from centralized conversation handler
-        response = handle_conversation(message, user_id)
+        response = conversational_round_trip(message, user_id)
         logger.info("Successfully processed message via centralized service")
         print(f"Response: {response}")
         
