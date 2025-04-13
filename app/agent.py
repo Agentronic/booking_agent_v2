@@ -423,7 +423,7 @@ What service would you like to book?"""
             logger.error(f"Error in handle_booking_request: {str(e)}", exc_info=True)
             return f"I'm sorry, there was an issue with the booking process: {str(e)}"
 
-async def handle_conversation(message, user_id="default_user"):
+async def conversational_round_trip(message, user_id="default_user"):
     """
     Main entry point for the conversation system.
     This function delegates to the BookingAgentService.
